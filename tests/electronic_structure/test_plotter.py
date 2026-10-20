@@ -192,39 +192,43 @@ class TestBSPlotter(MatSciTest):
 
 
 class TestBSPlotterProjected:
-    def setup_method(self):
+    # The projected dot plots draw one Line2D per point and are slow, so the checks are split into
+    # separate tests that pytest-xdist can spread across workers, sharing one class-level plotter.
+    @classmethod
+    def setup_class(cls):
         with open(f"{BAND_TEST_DIR}/Cu2O_361_bandstructure.json", "rb") as file:
-            self.bs_Cu2O = BandStructureSymmLine.from_dict(orjson.loads(file.read()))
-        self.plotter_Cu2O = BSPlotterProjected(self.bs_Cu2O)
+            cls.bs_Cu2O = BandStructureSymmLine.from_dict(orjson.loads(file.read()))
+        cls.plotter_Cu2O = BSPlotterProjected(cls.bs_Cu2O)
 
-        with open(f"{TEST_FILES_DIR}/electronic_structure/boltztrap2/PbTe_bandstructure.json", "rb") as file:
-            self.bs_PbTe = BandStructureSymmLine.from_dict(orjson.loads(file.read()))
+    def teardown_method(self):
+        plt.close("all")
 
     def test_orbitals_sum_orbitals_without_sum_morbs(self):
         assert self.plotter_Cu2O._Orbitals_SumOrbitals({"Cu": ["dxy"]}, None) == ({"Cu": ["dxy"]}, None)
 
-    def test_methods(self):
+    def test_elt_projected_plots(self):
         # Minimal baseline testing for get_plot. not a true test. Just checks that
         # it can actually execute.
         self.plotter_Cu2O.get_elt_projected_plots()
         self.plotter_Cu2O.get_elt_projected_plots_color()
-        axes = self.plotter_Cu2O.get_projected_plots_dots({"Cu": ["d", "s"], "O": ["p"]})
-        assert len(axes) == 4, f"{len(axes)=}"
-        assert len(axes[0].get_lines()) == 4903, f"{len(axes[0].get_lines())=}"
-        assert len(axes[-1].get_lines()) == 0, f"{len(axes[-1].get_lines())=}"
 
-        # Test if a plot with a single column works
-        axes = self.plotter_Cu2O.get_projected_plots_dots({"Cu": ["d", "s"]})
-        assert len(axes) == 2, f"{len(axes)=}"
+    @pytest.mark.parametrize(
+        ("dictio", "n_axes", "n_lines_last"),
+        [
+            ({"Cu": ["d", "s"], "O": ["p"]}, 4, 0),
+            # single column
+            ({"Cu": ["d", "s"]}, 2, 4903),
+            # single row
+            ({"Cu": ["d"], "O": ["p"]}, 2, 4903),
+        ],
+    )
+    def test_projected_plots_dots(self, dictio, n_axes, n_lines_last):
+        axes = self.plotter_Cu2O.get_projected_plots_dots(dictio)
+        assert len(axes) == n_axes, f"{len(axes)=}"
         assert len(axes[0].get_lines()) == 4903, f"{len(axes[0].get_lines())=}"
-        assert len(axes[-1].get_lines()) == 4903, f"{len(axes[-1].get_lines())=}"
+        assert len(axes[-1].get_lines()) == n_lines_last, f"{len(axes[-1].get_lines())=}"
 
-        # Test if a plot with a single row works
-        axes = self.plotter_Cu2O.get_projected_plots_dots({"Cu": ["d"], "O": ["p"]})
-        assert len(axes) == 2, f"{len(axes)=}"
-        assert len(axes[0].get_lines()) == 4903, f"{len(axes[0].get_lines())=}"
-        assert len(axes[-1].get_lines()) == 4903, f"{len(axes[-1].get_lines())=}"
-
+    def test_projected_plots_dots_patom_pmorb(self):
         axs = self.plotter_Cu2O.get_projected_plots_dots_patom_pmorb(
             {"Cu": ["dxy", "s", "px"], "O": ["px", "py", "pz"]},
             {"Cu": [3, 5], "O": [1]},
@@ -235,6 +239,7 @@ class TestBSPlotterProjected:
         assert len(axs[0].get_lines()) == 4903
         assert axs[0].get_ylim() == approx((-4.0, 4.5047))
 
+    def test_projected_plots_dots_patom_pmorb_num_column(self):
         # Test if num_column other than 2 works correctly
         axs_col = self.plotter_Cu2O.get_projected_plots_dots_patom_pmorb(
             {"Cu": ["dxy", "s", "px"], "O": ["px", "py", "pz"]}, {"Cu": [3, 5], "O": [1]}, num_column=3
@@ -243,11 +248,14 @@ class TestBSPlotterProjected:
         assert axs_spec.rowspan.start == 0
         assert axs_spec.colspan.start == 2
 
+    def test_no_projections_raises(self):
+        with open(f"{TEST_FILES_DIR}/electronic_structure/boltztrap2/PbTe_bandstructure.json", "rb") as file:
+            bs_PbTe = BandStructureSymmLine.from_dict(orjson.loads(file.read()))
         with pytest.raises(
             ValueError,
             match="Can't plot projections on a band structure without projections data",
         ):
-            BSPlotterProjected(self.bs_PbTe)
+            BSPlotterProjected(bs_PbTe)
 
 
 class TestBSDOSPlotter:
