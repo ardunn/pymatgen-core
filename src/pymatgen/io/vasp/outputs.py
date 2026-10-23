@@ -2970,7 +2970,10 @@ class Outcar:
         Renders accessible from self.data:
             piezo_tensor (list[list[float]]): The piezo tensor.
         """
-        header_pattern = r"PIEZOELECTRIC TENSOR  for field in x, y, z\s+\(C/m\^2\)\s+([X-Z][X-Z]\s+)+\-+"
+        header_pattern = (
+            r"PIEZOELECTRIC TENSOR(?: \(including local field effects\))?  for field in x, y, z"
+            r"\s+\(C/m\^2\)\s+([X-Z][X-Z]\s+)+\-+"
+        )
         row_pattern = r"[x-z]\s+" + r"\s+".join([r"(\-*[\.\d]+)"] * 6)
         footer_pattern = r"BORN EFFECTIVE"
         piezo_tensor: list[list[float]] = self.read_table_pattern(
@@ -3308,7 +3311,10 @@ class Outcar:
 
             search.append(
                 [
-                    r"PIEZOELECTRIC TENSOR  for field in x, y, z        \(C/m\^2\)",
+                    (
+                        r"PIEZOELECTRIC TENSOR(?: \(including local field effects\))?"
+                        r"  for field in x, y, z        \(C/m\^2\)"
+                    ),
                     None,
                     piezo_section_start,
                 ]

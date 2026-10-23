@@ -1169,6 +1169,21 @@ class TestOutcar:
         assert outcar.data["piezo_tensor"][1][3] == approx(0.35998)
         assert outcar.data["piezo_tensor"][2][5] == approx(0.35997)
 
+    def test_read_piezo_tensor_local_field_effects(self):
+        # VASP 6 adds "(including local field effects)" to the piezo tensor header
+        with zopen(f"{VASP_OUT_DIR}/OUTCAR.lepsilon.gz", mode="rt", encoding="utf-8") as file:
+            text = file.read().replace(
+                "PIEZOELECTRIC TENSOR  for", "PIEZOELECTRIC TENSOR (including local field effects)  for"
+            )
+        Path("OUTCAR").write_text(text, encoding="utf-8")
+        outcar = Outcar("OUTCAR")
+
+        outcar.read_piezo_tensor()
+        for piezo_tensor in (outcar.piezo_tensor, outcar.data["piezo_tensor"]):
+            assert piezo_tensor[0][0] == approx(0.52799)
+            assert piezo_tensor[1][3] == approx(0.35998)
+            assert piezo_tensor[2][5] == approx(0.35997)
+
     def test_core_state_eigen(self):
         filepath = f"{VASP_OUT_DIR}/OUTCAR.CL.gz"
         cl = Outcar(filepath).read_core_state_eigen()
